@@ -9,12 +9,17 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 def extract_group(description):
-    if description and description.startswith("[") and description.endswith("]"):
-        return description[1:-1].strip()
+    if description:
+        parts = [p.strip() for p in description.split(",")]
+        for part in parts:
+            if part.startswith("[") and part.endswith("]"):
+                return part[1:-1].strip()
     return "default"
 
-def format_var_line(key, value, group, sensitive=False, hcl=False):
+def format_var_line(key, value, group, sensitive=False, hcl=False, keep=False):
     tags = [f"[{group}]"]
+    if keep:
+        tags.append("keep_in_all_workspaces")
     if sensitive:
         tags.append("sensitive")
     if hcl:
@@ -35,7 +40,8 @@ def group_and_format_vars_for_tfvars(variables_dict):
         if sensitive:
             value = "_SECRET"
         group = extract_group(description)
-        var_line = format_var_line(key, value, group, sensitive, hcl)
+        keep = "keep_in_all_workspaces" in description
+        var_line = format_var_line(key, value, group, sensitive, hcl, keep)
         grouped_vars.setdefault(group, []).append(var_line)
     for group in grouped_vars:
         grouped_vars[group].sort()
@@ -45,15 +51,6 @@ def group_and_format_vars_for_tfvars(variables_dict):
         for var_line in vars_list:
             tfvars_content += f"{var_line}\n"
     return tfvars_content.strip()
-
-# Load credentials
-try:
-    token_path = os.path.expanduser("~/.terraform.d/credentials.tfrc.json")
-    with open(token_path, "r") as file:
-        token = json.load(file)["credentials"]["app.terraform.io"]["token"]
-except Exception as e:
-    logger.error(f"Error loading credentials: {e}")
-    exit(1)
 
 # Load credentials
 try:
@@ -124,16 +121,68 @@ elif args.compare:
         workspace1_id, workspace2_id = args.compare
         response1 = requests.get(f"{api_endpoint}{workspace1_id}/vars/", headers=headers)
         response2 = requests.get(f"{api_endpoint}{workspace2_id}/vars/", headers=headers)
+
         vars1 = response1.json()["data"] if response1.status_code == 200 else []
         vars2 = response2.json()["data"] if response2.status_code == 200 else []
+
         vars1_dict = {v["attributes"]["key"]: v for v in vars1}
         vars2_dict = {v["attributes"]["key"]: v for v in vars2}
-        diff_vars = {k: v for k, v in vars1_dict.items() if k not in vars2_dict}
-        all_vars = vars2_dict.copy()
-        for k, v in diff_vars.items():
-            v["attributes"]["value"] = "complete_here"
-            all_vars[k] = v
-        tfvars_content = group_and_format_vars_for_tfvars(all_vars)
+
+        all_keys = set(vars1_dict.keys()).union(vars2_dict.keys())
+        merged_vars = {}
+
+        for key in sorted(all_keys):
+            v1 = vars1_dict.get(key)
+            v2 = vars2_dict.get(key)
+
+            attr1 = v1["attributes"] if v1 else {}
+            attr2 = v2["attributes"] if v2 else {}
+
+            desc1 = attr1.get("description", "")
+            desc2 = attr2.get("description", "")
+            description = desc1 or desc2
+            has_keep_tag = "keep_in_all_workspaces" in desc1 or "keep_in_all_workspaces" in desc2
+            sensitive = attr1.get("sensitive", False) or attr2.get("sensitive", False)
+            hcl = attr1.get("hcl", False) or attr2.get("hcl", False)
+
+            if sensitive:
+                value = "_SECRET"
+            else:
+                has_keep_tag = "keep_in_all_workspaces" in description
+                if has_keep_tag:
+                    val1 = attr1.get("value")
+                    val2 = attr2.get("value")
+                    if val1 == val2:
+                        value = val1 or "_SECRET"
+                    else:
+                        logger.warning(f"Variable {key} has keep_in_all_workspaces tag but different values across workspaces.")
+                        value = f"{val1 or '<undefined>'} |<->| {val2 or '<undefined>'}"
+                else:
+                    if v1 and v2:
+                        val1 = attr1.get("value", "_SECRET")
+                        val2 = attr2.get("value", "_SECRET")
+                        value = f"{val1} |<->| {val2}"
+                    elif v1:
+                        val1 = attr1.get("value", "_SECRET")
+                        value = f"{val1} |<->| <enter_new_value>"
+                    elif v2:
+                        val2 = attr2.get("value", "_SECRET")
+                        value = f"<undefined> |<->| {val2}"
+                    else:
+                        continue
+
+            merged_vars[key] = {
+                "attributes": {
+                    "key": key,
+                    "value": value,
+                    "description": description,
+                    "sensitive": sensitive,
+                    "hcl": hcl,
+                }
+            }
+
+        tfvars_content = group_and_format_vars_for_tfvars(merged_vars)
+
         with open(args.output, "w") as f:
             f.write(tfvars_content)
         logger.info(f"The {args.output} file has been created successfully.")
@@ -172,7 +221,8 @@ elif args.upload:
                 value = value.strip().strip('"')
                 sensitive = False
                 hcl = False
-                description = ""
+                group = "default"
+                keep = False
                 if comment:
                     tags = [t.strip() for t in comment[0].split(",")]
                     for tag in tags:
@@ -180,8 +230,14 @@ elif args.upload:
                             sensitive = True
                         elif tag == "hcl":
                             hcl = True
+                        elif tag == "keep_in_all_workspaces":
+                            keep = True
                         elif tag.startswith("[") and tag.endswith("]"):
-                            description = tag
+                            group = tag[1:-1].strip()
+                description_parts = [f"[{group}]"] if group else []
+                if keep:
+                    description_parts.append("keep_in_all_workspaces")
+                description = ", ".join(description_parts)
                 if value in ["None", "_SECRET"]:
                     logger.info(f"Variable {key} has value '{value}', skipping update.")
                     continue
@@ -225,7 +281,6 @@ elif args.upload:
             except Exception as e:
                 logger.error(f"Error processing line '{line}': {e}")
 
-        # Handle removal of extra variables
         remote_keys = set(existing_vars.keys())
         keys_to_delete = remote_keys - tfvars_keys
         if keys_to_delete:

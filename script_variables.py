@@ -64,6 +64,7 @@ parser.add_argument("--tfvars", help="path to the .tfvars file for upload")
 parser.add_argument("--compare", nargs=2, metavar=("workspace1_id", "workspace2_id"))
 parser.add_argument("--output", default="default.tfvars")
 parser.add_argument("--delete-all-variables", action="store_true", help="delete all variables in the given workspace")
+parser.add_argument("--remove", action="store_true", help="remove variables from remote that are not in tfvars")
 args = parser.parse_args()
 
 api_endpoint = "https://app.terraform.io/api/v2/workspaces/"
@@ -97,40 +98,7 @@ if args.delete_all_variables:
         logger.error(f"Failed to delete variables: {e}")
     exit(0)
 
-if args.download:
-    try:
-        response = requests.get(f"{api_endpoint}{args.id}/vars/", headers=headers)
-        response.raise_for_status()
-        vars_dict = {var["attributes"]["key"]: var for var in response.json()["data"]}
-        tfvars_content = group_and_format_vars_for_tfvars(vars_dict)
-        with open(args.output, "w") as f:
-            f.write(tfvars_content)
-        logger.info(f"The {args.output} file has been created successfully.")
-    except Exception as e:
-        logger.error(f"Download failed: {e}")
-
-elif args.compare:
-    try:
-        workspace1_id, workspace2_id = args.compare
-        response1 = requests.get(f"{api_endpoint}{workspace1_id}/vars/", headers=headers)
-        response2 = requests.get(f"{api_endpoint}{workspace2_id}/vars/", headers=headers)
-        vars1 = response1.json()["data"] if response1.status_code == 200 else []
-        vars2 = response2.json()["data"] if response2.status_code == 200 else []
-        vars1_dict = {v["attributes"]["key"]: v for v in vars1}
-        vars2_dict = {v["attributes"]["key"]: v for v in vars2}
-        diff_vars = {k: v for k, v in vars1_dict.items() if k not in vars2_dict}
-        all_vars = vars2_dict.copy()
-        for k, v in diff_vars.items():
-            v["attributes"]["value"] = "complete_here"
-            all_vars[k] = v
-        tfvars_content = group_and_format_vars_for_tfvars(all_vars)
-        with open(args.output, "w") as f:
-            f.write(tfvars_content)
-        logger.info(f"The {args.output} file has been created successfully.")
-    except Exception as e:
-        logger.error(f"Comparison failed: {e}")
-
-elif args.upload:
+if args.upload:
     if args.tfvars:
         try:
             with open(args.tfvars, "r") as file:
@@ -147,6 +115,8 @@ elif args.upload:
             logger.warning(f"Error retrieving existing variables: {e}")
             existing_vars = {}
 
+        tfvars_keys = set()
+
         for line in lines:
             try:
                 line = line.strip()
@@ -156,6 +126,7 @@ elif args.upload:
                 key_value, *comment = line.split("#")
                 key, value = key_value.strip().split("=", 1)
                 key = key.strip()
+                tfvars_keys.add(key)
                 value = value.strip().strip('"')
                 sensitive = False
                 hcl = False
@@ -211,7 +182,20 @@ elif args.upload:
                     logger.error(f"Failed to {action} variable {key}. Status code: {response.status_code}")
             except Exception as e:
                 logger.error(f"Error processing line '{line}': {e}")
+
+        # Handle removal of extra variables
+        remote_keys = set(existing_vars.keys())
+        keys_to_delete = remote_keys - tfvars_keys
+        if keys_to_delete:
+            if args.remove:
+                for key in keys_to_delete:
+                    var_id = existing_vars[key]["id"]
+                    response = requests.delete(f"{api_endpoint}{args.id}/vars/{var_id}", headers=headers)
+                    if response.status_code == 204:
+                        logger.info(f"Removed variable not in tfvars: {key}")
+                    else:
+                        logger.error(f"Failed to remove variable {key}. Status: {response.status_code}")
+            else:
+                logger.warning("Remote variables not in tfvars (consider using --remove):\n" + "\n".join(sorted(keys_to_delete)))
     else:
         logger.error("Please specify the path to the .tfvars file using --tfvars.")
-else:
-    logger.warning("Please specify either --download, --upload, --compare, or --delete-all-variables.")

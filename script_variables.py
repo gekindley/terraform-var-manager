@@ -63,6 +63,7 @@ parser.add_argument("--upload", action="store_true")
 parser.add_argument("--tfvars", help="path to the .tfvars file for upload")
 parser.add_argument("--compare", nargs=2, metavar=("workspace1_id", "workspace2_id"))
 parser.add_argument("--output", default="default.tfvars")
+parser.add_argument("--delete-all-variables", action="store_true", help="delete all variables in the given workspace")
 args = parser.parse_args()
 
 api_endpoint = "https://app.terraform.io/api/v2/workspaces/"
@@ -70,6 +71,31 @@ headers = {
     "Content-Type": "application/vnd.api+json",
     "Authorization": f"Bearer {token}",
 }
+
+if args.delete_all_variables:
+    if not args.id:
+        logger.error("--id is required when using --delete-all-variables")
+        exit(1)
+    confirm = input(f"Are you sure you want to delete all variables from workspace \"{args.id}\"? (yes/[no]): ")
+    if confirm.strip().lower() != "yes":
+        logger.info("Operation aborted by user.")
+        exit(0)
+    try:
+        response = requests.get(f"{api_endpoint}{args.id}/vars/", headers=headers)
+        response.raise_for_status()
+        vars_list = response.json()["data"]
+        for var in vars_list:
+            var_id = var["id"]
+            key = var["attributes"]["key"]
+            del_response = requests.delete(f"{api_endpoint}{args.id}/vars/{var_id}", headers=headers)
+            if del_response.status_code == 204:
+                logger.info(f"Deleted variable: {key}")
+            else:
+                logger.error(f"Failed to delete variable {key}. Status: {del_response.status_code}")
+        logger.info("All variables processed.")
+    except Exception as e:
+        logger.error(f"Failed to delete variables: {e}")
+    exit(0)
 
 if args.download:
     try:
@@ -188,4 +214,4 @@ elif args.upload:
     else:
         logger.error("Please specify the path to the .tfvars file using --tfvars.")
 else:
-    logger.warning("Please specify either --download, --upload, or --compare.")
+    logger.warning("Please specify either --download, --upload, --compare, or --delete-all-variables.")

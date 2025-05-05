@@ -55,6 +55,15 @@ except Exception as e:
     logger.error(f"Error loading credentials: {e}")
     exit(1)
 
+# Load credentials
+try:
+    token_path = os.path.expanduser("~/.terraform.d/credentials.tfrc.json")
+    with open(token_path, "r") as file:
+        token = json.load(file)["credentials"]["app.terraform.io"]["token"]
+except Exception as e:
+    logger.error(f"Error loading credentials: {e}")
+    exit(1)
+
 # Parse CLI arguments
 parser = argparse.ArgumentParser(description="fetch or upload terraform variables.")
 parser.add_argument("--id", help="workspace id")
@@ -98,7 +107,40 @@ if args.delete_all_variables:
         logger.error(f"Failed to delete variables: {e}")
     exit(0)
 
-if args.upload:
+elif args.download:
+    try:
+        response = requests.get(f"{api_endpoint}{args.id}/vars/", headers=headers)
+        response.raise_for_status()
+        vars_dict = {var["attributes"]["key"]: var for var in response.json()["data"]}
+        tfvars_content = group_and_format_vars_for_tfvars(vars_dict)
+        with open(args.output, "w") as f:
+            f.write(tfvars_content)
+        logger.info(f"The {args.output} file has been created successfully.")
+    except Exception as e:
+        logger.error(f"Download failed: {e}")
+
+elif args.compare:
+    try:
+        workspace1_id, workspace2_id = args.compare
+        response1 = requests.get(f"{api_endpoint}{workspace1_id}/vars/", headers=headers)
+        response2 = requests.get(f"{api_endpoint}{workspace2_id}/vars/", headers=headers)
+        vars1 = response1.json()["data"] if response1.status_code == 200 else []
+        vars2 = response2.json()["data"] if response2.status_code == 200 else []
+        vars1_dict = {v["attributes"]["key"]: v for v in vars1}
+        vars2_dict = {v["attributes"]["key"]: v for v in vars2}
+        diff_vars = {k: v for k, v in vars1_dict.items() if k not in vars2_dict}
+        all_vars = vars2_dict.copy()
+        for k, v in diff_vars.items():
+            v["attributes"]["value"] = "complete_here"
+            all_vars[k] = v
+        tfvars_content = group_and_format_vars_for_tfvars(all_vars)
+        with open(args.output, "w") as f:
+            f.write(tfvars_content)
+        logger.info(f"The {args.output} file has been created successfully.")
+    except Exception as e:
+        logger.error(f"Comparison failed: {e}")
+
+elif args.upload:
     if args.tfvars:
         try:
             with open(args.tfvars, "r") as file:

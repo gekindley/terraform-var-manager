@@ -1,8 +1,9 @@
 [project]
 name = "terraform-var-manager"
-version = "0.1.0"
+version = "1.0.0"
 description = "A tool to manage Terraform Cloud variables with advanced features like comparison, synchronization, and tagging"
 readme = "README.md"
+license = {file = "LICENSE"}
 authors = [
     { name = "Geordy Kindley", email = "gekindley@gmail.com" }
 ]
@@ -12,7 +13,7 @@ dependencies = [
 ]
 keywords = ["terraform", "terraform-cloud", "variables", "devops", "infrastructure"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",

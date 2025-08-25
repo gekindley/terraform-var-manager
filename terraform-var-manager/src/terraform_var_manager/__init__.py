@@ -5,7 +5,7 @@ A powerful tool to manage Terraform Cloud variables with advanced features
 like comparison, synchronization, and tagging.
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 __author__ = "Geordy Kindley"
 __email__ = "gekindley@gmail.com"
 

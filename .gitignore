@@ -173,4 +173,18 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# Project specific
 backup/
+*.tfvars
+!terraform-var-manager/tests/fixtures/*.tfvars
+.terraform/
+.terraform.lock.hcl
+
+# UV specific
+.venv/
+.uv_cache/
+uv.lock
+
+# IDE
+.vscode/
+.idea/

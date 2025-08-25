@@ -1,0 +1,67 @@
+[project]
+name = "terraform-var-manager"
+version = "0.1.0"
+description = "A tool to manage Terraform Cloud variables with advanced features like comparison, synchronization, and tagging"
+readme = "README.md"
+authors = [
+    { name = "Geordy Kindley", email = "gekindley@gmail.com" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.28.0",
+]
+keywords = ["terraform", "terraform-cloud", "variables", "devops", "infrastructure"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Systems Administration",
+]
+
+[project.urls]
+Homepage = "https://github.com/gekindley/terraform-var-manager"
+Repository = "https://github.com/gekindley/terraform-var-manager"
+Issues = "https://github.com/gekindley/terraform-var-manager/issues"
+Documentation = "https://github.com/gekindley/terraform-var-manager#readme"
+
+[project.scripts]
+terraform-var-manager = "terraform_var_manager.main:main"
+tfvar-manager = "terraform_var_manager.main:main"
+
+[build-system]
+requires = ["uv_build>=0.8.13,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/terraform_var_manager"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+]

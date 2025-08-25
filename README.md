@@ -1,116 +1,332 @@
-# Terraform Variables Management Script
+# Terraform Variables Manager
 
-This script is designed to manage Terraform variables in Terraform Cloud. It allows you to download, upload, and compare variables between different workspaces, as well as delete or synchronize them.
+[![PyPI version](https://badge.fury.io/py/terraform-var-manager.svg)](https://badge.fury.io/py/terraform-var-manager)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Requirements
+A Python package and CLI tool for managing Terraform Cloud variables with advanced features like comparison, synchronization, and intelligent tagging.
 
-- Python 3.x
-- Python Libraries:
-  `requests`
+## 🚀 Features
 
-You can install the required packages using pip:
+- **Download/Upload Variables**: Seamlessly sync variables between local `.tfvars` files and Terraform Cloud workspaces
+- **Compare Workspaces**: Generate comparison reports between different workspaces
+- **Smart Tagging System**: Organize variables with groups, sensitivity markers, and special behaviors
+- **Bulk Operations**: Delete all variables or selectively remove outdated ones
+- **HCL Support**: Handle complex variable types with proper HCL formatting
+- **Sensitive Data Protection**: Automatic masking and handling of sensitive variables
+- **Keep Across Workspaces**: Special tags to maintain variables across all environments
 
-```sh
-pip install requests
+## 📦 Installation
+
+### Using pip
+```bash
+pip install terraform-var-manager
 ```
 
-## Usage
-
-This script supports the following functionalities:
-
-* Download variables from a Terraform Cloud workspace
-* Upload variables to a Terraform Cloud workspace from a .tfvars file
-* Compare variables between two Terraform Cloud workspaces
-* Delete all variables from a workspace
-* Remove remote variables not present in a .tfvars file
-
-## Command Line Arguments
-
-* `--id`: ID of the Terraform Cloud workspace
-* `--download`: Download variables from the specified workspace
-* `--upload`: Upload variables to the specified workspace
-* `--tfvars`: Path to the .tfvars file to upload
-* `--compare`: Compare variables between two workspaces
-* `--output`: Specify the output file for downloaded variables or comparison results
-* `--delete-all-variables`: Delete all variables in the specified workspace (confirmation required)
-* `--remove`: Remove remote variables that are not present in the uploaded .tfvars file
-
-## Examples
-
-### Download variables
-
-To download variables from a Terraform Cloud workspace:
-
-```sh
-python script_variables.py --id <workspace_id> --download --output variables.tfvars
+### Using uv (recommended)
+```bash
+uv add terraform-var-manager
 ```
 
-### Upload variables
-
-To upload variables to a Terraform Cloud workspace from a .tfvars file:
-
-```sh
-python script_variables.py --id <workspace_id> --upload --tfvars variables.tfvars
+### Development Installation
+```bash
+git clone https://github.com/gekindley/terraform-var-manager.git
+cd terraform-var-manager
+uv sync
 ```
 
-### Compare variables
+## 🏃‍♂️ Quick Start
 
-To compare variables between two Terraform Cloud workspaces:
+### Prerequisites
+Ensure your Terraform Cloud credentials are configured in `~/.terraform.d/credentials.tfrc.json`:
 
-```sh
-python script_variables.py --compare <workspace1_id> <workspace2_id> --output comparison.tfvars
+```json
+{
+  "credentials": {
+    "app.terraform.io": {
+      "token": "your-terraform-cloud-token"
+    }
+  }
+}
 ```
 
-This will compare the variables between the two specified workspaces and save the differences in `comparison.tfvars`. The first `<workspace1_id>` is the source workspace, and the second `<workspace2_id>` is the target workspace. For example, to find variables in `dev` not in `qa`, use `dev` as workspace1 and `qa` as workspace2.
+### Basic Usage
 
-### Delete all variables in a workspace
+```bash
+# Download variables from a workspace
+terraform-var-manager --id <workspace_id> --download --output variables.tfvars
 
-```sh
-python script_variables.py --id <workspace_id> --delete-all-variables
+# Upload variables to a workspace
+terraform-var-manager --id <workspace_id> --upload --tfvars variables.tfvars
+
+# Compare two workspaces
+terraform-var-manager --compare <workspace1_id> <workspace2_id> --output comparison.tfvars
+
+# Delete all variables (with confirmation)
+terraform-var-manager --id <workspace_id> --delete-all-variables
+
+# Upload with cleanup (remove variables not in tfvars)
+terraform-var-manager --id <workspace_id> --upload --tfvars variables.tfvars --remove
 ```
 
-### Remove remote variables not in local .tfvars
+## 🏷️ Tagging System
 
-```sh
-python script_variables.py --id <workspace_id> --upload --tfvars variables.tfvars --remove
-```
-
-## Tags
-
-This script supports tagging variables in the `.tfvars` file. Tags are used to group variables and provide metadata such as sensitivity and special handling.
-
-* `hcl`: Indicates that the variable is HCL and should be parsed accordingly.
-* `sensitive`: Marks the variable as sensitive. Its value will be masked.
-* `keep_in_all_workspaces`: Indicates that this variable must be preserved across all environments (used during comparison).
-* `[<group>]`: Assigns the variable to a logical group.
-
-### Tag Example in .tfvars
+Variables support intelligent tagging through comments in `.tfvars` files:
 
 ```hcl
-# ====== default ======
-variable2 = "value2" # sensitive
-variable3 = "value3" # hcl
+# ========== api_gateway ==========
+api_key = "your-api-key" # [api_gateway], sensitive
+api_url = "https://api.example.com" # [api_gateway], keep_in_all_workspaces
 
-# ====== group1 ======
-variable1 = "value1" # [group1]
-variable5 = "value5" # [group1], keep_in_all_workspaces
+# ========== database ==========
+db_hosts = ["host1", "host2"] # [database], hcl
+db_password = "_SECRET" # [database], sensitive
 
-# ====== group2 ======
-variable4 = "value4" # [group2], sensitive
+# ========== application ==========
+app_name = "my-app" # [application], keep_in_all_workspaces
+app_version = "1.0.0" # [application]
 ```
 
-## Special Comparison Behavior
+### Available Tags
 
-When using `--compare`:
+- `[group_name]`: Organizes variables into logical groups
+- `sensitive`: Marks variable as sensitive (value will be masked)
+- `hcl`: Indicates the variable uses HCL syntax (lists, maps, etc.)
+- `keep_in_all_workspaces`: Preserves variable across all environments during comparison
 
-- If a variable has `keep_in_all_workspaces`, it will keep the value if both are equal. If different, a warning will be logged and the difference shown.
-- If a variable exists only in workspace1: `value1 |<->| <enter_new_value>`
-- If only in workspace2: `<undefined> |<->| value2`
-- If exists in both and differs: `value1 |<->| value2`
-- If sensitive, always replaced with `_SECRET`
+## 🔄 Workspace Comparison
 
-## Notes
+When comparing workspaces, the tool intelligently handles differences:
 
-* Ensure your Terraform Cloud credentials are set up in `~/.terraform.d/credentials.tfrc.json`
-* Comments and malformed lines in `.tfvars` files are ignored during upload.
-* Output `.tfvars` files are grouped by tag and sorted alphabetically for consistency.
+- **Identical values**: `value`
+- **Different values**: `value1 |<->| value2`
+- **Missing in target**: `value1 |<->| <enter_new_value>`
+- **Missing in source**: `<undefined> |<->| value2`
+- **Sensitive variables**: Always shows `_SECRET`
+- **Keep tagged variables**: Warns if values differ across workspaces
+
+## 🛠️ Development
+
+### Setup Development Environment
+```bash
+git clone https://github.com/gekindley/terraform-var-manager.git
+cd terraform-var-manager
+uv sync --all-extras
+```
+
+### Development Commands
+```bash
+# Run tests with coverage
+./dev.sh test
+
+# Build the package
+./dev.sh build
+
+# Run the CLI tool
+./dev.sh run --help
+
+# Clean build artifacts
+./dev.sh clean
+```
+
+### Running Tests
+```bash
+uv run pytest tests/ -v --cov=src/terraform_var_manager
+```
+
+## 📚 API Usage
+
+You can also use the package programmatically:
+
+```python
+from terraform_var_manager import VariableManager, TerraformCloudClient
+
+# Initialize the manager
+manager = VariableManager()
+
+# Download variables
+success = manager.download_variables("workspace-id", "output.tfvars")
+
+# Upload variables
+success = manager.upload_variables("workspace-id", "input.tfvars", remove_missing=True)
+
+# Compare workspaces
+success = manager.compare_workspaces("workspace1-id", "workspace2-id", "comparison.tfvars")
+
+# Delete all variables
+success = manager.delete_all_variables("workspace-id")
+```
+
+## � Detailed Usage
+
+### Download Variables
+
+Download all variables from a Terraform Cloud workspace to a local `.tfvars` file:
+
+```bash
+terraform-var-manager --id <workspace_id> --download --output variables.tfvars
+```
+
+**What it does:**
+- Retrieves all variables from the specified workspace
+- Organizes variables by groups (from descriptions)
+- Formats output as a proper `.tfvars` file with comments
+- Masks sensitive variables as `_SECRET`
+- Sorts variables alphabetically within each group
+
+**Example output:**
+```hcl
+# ========== api_gateway ==========
+api_key = "_SECRET" # [api_gateway], sensitive
+api_url = "https://api.example.com" # [api_gateway], keep_in_all_workspaces
+
+# ========== database ==========
+db_host = "localhost" # [database]
+db_port = 5432 # [database], hcl
+```
+
+### Upload Variables
+
+Upload variables from a local `.tfvars` file to a Terraform Cloud workspace:
+
+```bash
+terraform-var-manager --id <workspace_id> --upload --tfvars variables.tfvars
+```
+
+**What it does:**
+- Reads variables from the specified `.tfvars` file
+- Parses tags and metadata from comments
+- Creates new variables or updates existing ones
+- Preserves variable descriptions and attributes
+- Skips variables with value `_SECRET` or `None`
+
+**Options:**
+- Add `--remove` to delete remote variables not present in the local file
+
+### Compare Variables
+
+Compare variables between two Terraform Cloud workspaces:
+
+```bash
+terraform-var-manager --compare <workspace1_id> <workspace2_id> --output comparison.tfvars
+```
+
+**What it does:**
+- Retrieves variables from both workspaces
+- Compares values, types, and metadata
+- Generates a unified view showing differences
+- Handles special cases for `keep_in_all_workspaces` variables
+
+**Output format:**
+- `value1 |<->| value2` - Different values
+- `value1 |<->| <enter_new_value>` - Missing in target workspace
+- `<undefined> |<->| value2` - Missing in source workspace
+- `value` - Identical in both workspaces
+
+**Use cases:**
+- Compare `dev` vs `staging` environments
+- Validate configuration drift
+- Prepare migration between workspaces
+
+### Delete All Variables
+
+Remove all variables from a workspace (with confirmation):
+
+```bash
+terraform-var-manager --id <workspace_id> --delete-all-variables
+```
+
+**What it does:**
+- Lists all variables in the workspace
+- Prompts for confirmation (`yes` required)
+- Deletes each variable individually
+- Provides progress feedback
+
+**Safety features:**
+- Requires explicit confirmation
+- Cannot be undone
+- Processes variables one by one with status updates
+
+### Bulk Upload with Cleanup
+
+Upload variables and remove any that aren't in the local file:
+
+```bash
+terraform-var-manager --id <workspace_id> --upload --tfvars variables.tfvars --remove
+```
+
+**What it does:**
+- Uploads variables from the `.tfvars` file
+- Identifies remote variables not present locally
+- Removes orphaned variables from the workspace
+- Provides detailed logging of all operations
+
+**Use cases:**
+- Synchronize workspace with local configuration
+- Clean up deprecated variables
+- Enforce infrastructure as code practices
+
+## 🏷️ Advanced Tagging Examples
+
+### Complex Variable Configurations
+
+```hcl
+# ========== networking ==========
+vpc_id = "vpc-123456" # [networking], keep_in_all_workspaces
+subnet_ids = ["subnet-1", "subnet-2"] # [networking], hcl
+
+# ========== security ==========
+kms_key_arn = "_SECRET" # [security], sensitive, keep_in_all_workspaces
+security_groups = {
+  web = "sg-web123"
+  db  = "sg-db456"
+} # [security], hcl
+
+# ========== application ==========
+app_config = {
+  name    = "my-app"
+  version = "1.2.3"
+  replicas = 3
+} # [application], hcl
+database_password = "_SECRET" # [application], sensitive
+```
+
+### Tag Combinations
+
+| Tag Combination | Behavior | Use Case |
+|----------------|----------|----------|
+| `[group]` | Basic grouping | Organization |
+| `[group], sensitive` | Masked value in output | Secrets |
+| `[group], hcl` | No quotes around value | Complex types |
+| `[group], keep_in_all_workspaces` | Should be identical across environments | Shared resources |
+| `[group], sensitive, keep_in_all_workspaces` | Masked but should exist everywhere | Global secrets |
+
+## 🔧 Advanced Options
+
+### Output Customization
+
+```bash
+# Custom output file name
+terraform-var-manager --id ws-123 --download --output my-vars.tfvars
+
+# Download to specific directory
+terraform-var-manager --id ws-123 --download --output /path/to/variables.tfvars
+```
+
+### Error Handling
+
+The tool provides detailed error messages and exit codes:
+
+```bash
+# Exit codes:
+# 0 - Success
+# 1 - General error (API, file access, etc.)
+
+# Check operation success
+terraform-var-manager --id ws-123 --download
+echo $?  # 0 = success, 1 = error
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

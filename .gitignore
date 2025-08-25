@@ -188,3 +188,13 @@ uv.lock
 # IDE
 .vscode/
 .idea/
+# Terraform credentials
+*.tfrc.json
+credentials.tfrc.json
+
+# Environment files
+.env
+.env.*
+
+# PyPI configuration
+.pypirc

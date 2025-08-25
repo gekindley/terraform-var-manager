@@ -600,7 +600,3 @@ uv publish
 # Un solo comando para rebuild rápido durante desarrollo
 ./dev.sh test && ./dev.sh clean && ./dev.sh build
 ```
-
----
-
-**🎉 ¡UV transformó terraform-var-manager de un script simple a un package Python profesional y distribuible!**

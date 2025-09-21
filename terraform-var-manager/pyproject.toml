@@ -1,6 +1,6 @@
 [project]
 name = "terraform-var-manager"
-version = "1.0.0"
+version = "1.0.1"
 description = "A tool to manage Terraform Cloud variables with advanced features like comparison, synchronization, and tagging"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -65,4 +65,5 @@ exclude_lines = [
 dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
+    "twine>=6.2.0",
 ]

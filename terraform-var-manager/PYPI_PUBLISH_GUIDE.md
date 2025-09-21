@@ -81,7 +81,7 @@ uv publish
 
 ### 2.1 Verificar que estés en el directorio correcto
 ```bash
-cd /home/gkindley/aaad/common/terraform-var-manager/terraform-var-manager
+cd ${HOME}/terraform-var-manager/terraform-var-manager
 pwd  # Debe mostrar la ruta del paquete
 ```
 

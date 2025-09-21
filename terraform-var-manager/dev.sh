@@ -88,25 +88,52 @@ case "${1:-help}" in
         echo "💡 Using credentials from ~/.pypirc"
         echo ""
         
-        # Extract TestPyPI password from .pypirc
-        TESTPYPI_TOKEN=$(grep -A 10 '\[testpypi\]' ~/.pypirc | grep '^password' | cut -d'=' -f2 | xargs)
+        # Get the password/token safely
+        TOKEN=$(grep -A 10 '\[testpypi\]' ~/.pypirc | grep '^password' | cut -d'=' -f2 | xargs)
         
-        if [ -z "$TESTPYPI_TOKEN" ]; then
-            print_error "Could not find testpypi token in ~/.pypirc"
+        if [[ -z "$TOKEN" ]]; then
+            print_error "No TestPyPI token found in ~/.pypirc"
             exit 1
         fi
         
-        echo "Publishing to TestPyPI..."
-        UV_PUBLISH_URL="https://test.pypi.org/legacy/" \
-        UV_PUBLISH_USERNAME="__token__" \
-        UV_PUBLISH_PASSWORD="$TESTPYPI_TOKEN" \
-        uv publish
+        echo "Publishing to TestPyPI with UV..."
         
-        if [ $? -eq 0 ]; then
-            print_success "Successfully published to TestPyPI!"
+        # Try UV first (with multiple methods)
+        echo "Method 1: UV with explicit credentials..."
+        if uv publish --publish-url https://test.pypi.org/legacy/ --username __token__ --password "$TOKEN" dist/* 2>/dev/null; then
+            print_success "Successfully published to TestPyPI with UV!"
             echo "🔗 Check your package at: https://test.pypi.org/project/terraform-var-manager/"
+            exit 0
+        fi
+        
+        echo "Method 2: UV with environment variables..."
+        export UV_PUBLISH_URL="https://test.pypi.org/legacy/"
+        export UV_PUBLISH_USERNAME="__token__"
+        export UV_PUBLISH_PASSWORD="$TOKEN"
+        
+        if uv publish dist/* 2>/dev/null; then
+            unset UV_PUBLISH_URL UV_PUBLISH_USERNAME UV_PUBLISH_PASSWORD
+            print_success "Successfully published to TestPyPI with UV!"
+            echo "🔗 Check your package at: https://test.pypi.org/project/terraform-var-manager/"
+            exit 0
+        fi
+        
+        unset UV_PUBLISH_URL UV_PUBLISH_USERNAME UV_PUBLISH_PASSWORD
+        
+        print_error "UV publish failed, using twine fallback..."
+        echo "💡 Note: This is a known issue with UV authentication for some token formats"
+        
+        # Fallback to twine (which we know works)
+        twine upload --repository testpypi dist/*
+        TWINE_RESULT=$?
+        
+        if [ $TWINE_RESULT -eq 0 ]; then
+            print_success "Successfully published to TestPyPI with twine!"
+            echo "🔗 Check your package at: https://test.pypi.org/project/terraform-var-manager/"
+            echo "ℹ️  Future UV versions may fix the authentication issue"
         else
-            print_error "Failed to publish to TestPyPI"
+            print_error "All publishing methods failed"
+            exit 1
         fi
         ;;
     
@@ -122,25 +149,55 @@ case "${1:-help}" in
             exit 0
         fi
         
-        # Extract PyPI password from .pypirc
-        PYPI_TOKEN=$(grep -A 10 '\[pypi\]' ~/.pypirc | grep '^password' | cut -d'=' -f2 | xargs)
+        # Get the password/token safely
+        TOKEN=$(grep -A 10 '\[pypi\]' ~/.pypirc | grep '^password' | cut -d'=' -f2 | xargs)
         
-        if [ -z "$PYPI_TOKEN" ]; then
-            print_error "Could not find pypi token in ~/.pypirc"
-            echo "💡 Please add a [pypi] section to your ~/.pypirc file"
+        if [[ -z "$TOKEN" ]]; then
+            print_error "No PyPI token found in ~/.pypirc"
+            echo "💡 Make sure you have a [pypi] section in ~/.pypirc with your token"
+            echo "   Generate a new one at: https://pypi.org/manage/account/token/"
             exit 1
         fi
         
-        echo "Publishing to PyPI..."
-        UV_PUBLISH_USERNAME="__token__" \
-        UV_PUBLISH_PASSWORD="$PYPI_TOKEN" \
-        uv publish
+        echo "Publishing to PyPI with UV..."
         
-        if [ $? -eq 0 ]; then
-            print_success "Successfully published to PyPI!"
+        # Try UV first (with multiple methods)
+        echo "Method 1: UV with explicit credentials..."
+        if uv publish --username __token__ --password "$TOKEN" dist/* 2>/dev/null; then
+            print_success "Successfully published to PyPI with UV!"
             echo "🔗 Check your package at: https://pypi.org/project/terraform-var-manager/"
+            exit 0
+        fi
+        
+        echo "Method 2: UV with environment variables..."
+        export UV_PUBLISH_USERNAME="__token__"
+        export UV_PUBLISH_PASSWORD="$TOKEN"
+        
+        if uv publish dist/* 2>/dev/null; then
+            unset UV_PUBLISH_USERNAME UV_PUBLISH_PASSWORD
+            print_success "Successfully published to PyPI with UV!"
+            echo "🔗 Check your package at: https://pypi.org/project/terraform-var-manager/"
+            exit 0
+        fi
+        
+        unset UV_PUBLISH_USERNAME UV_PUBLISH_PASSWORD
+        
+        print_error "UV publish failed, using twine fallback..."
+        echo "💡 Note: This is a known issue with UV authentication for some token formats"
+        
+        # Fallback to twine (which we know works)
+        twine upload dist/*
+        TWINE_RESULT=$?
+        
+        if [ $TWINE_RESULT -eq 0 ]; then
+            print_success "Successfully published to PyPI with twine!"
+            echo "🔗 Check your package at: https://pypi.org/project/terraform-var-manager/"
+            echo "ℹ️  Future UV versions may fix the authentication issue"
         else
-            print_error "Failed to publish to PyPI"
+            print_error "All publishing methods failed"
+            echo "💡 If this fails, make sure your PyPI token is valid"
+            echo "   Generate a new one at: https://pypi.org/manage/account/token/"
+            exit 1
         fi
         ;;
     

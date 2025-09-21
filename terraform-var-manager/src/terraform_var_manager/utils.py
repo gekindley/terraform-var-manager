@@ -38,7 +38,7 @@ def group_and_format_vars_for_tfvars(variables_dict):
     for key, var in variables_dict.items():
         sensitive = var["attributes"]["sensitive"]
         hcl = var["attributes"]["hcl"]
-        description = var["attributes"].get("description", "")
+        description = var["attributes"].get("description", "") or ""  # Handle None case
         value = var["attributes"].get("value", "_SECRET" if sensitive else "")
         if sensitive:
             value = "_SECRET"

@@ -181,23 +181,29 @@ class VariableManager:
         variables: dict[str, dict[str, Any]] = {}
 
         with open(tfvars_file) as file:
-            lines = file.readlines()
+            content = file.read()
+            lines = content.splitlines()
 
-        for line in lines:
-            line = line.strip()
-            if line.startswith("#") or "=" not in line:
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Skip comments and empty lines
+            if line.startswith("#") or not line or "=" not in line:
+                i += 1
                 continue
 
             key_value, *comment = line.split("#")
-            key, value = key_value.strip().split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"')
+            key_part, value_part = key_value.strip().split("=", 1)
+            key = key_part.strip()
+            value = value_part.strip()
 
             # Parse tags from comment
             sensitive = False
             hcl = False
             group = "default"
             keep = False
+            mline = False
 
             if comment:
                 tags = [t.strip() for t in comment[0].split(",")]
@@ -208,13 +214,65 @@ class VariableManager:
                         hcl = True
                     elif tag == "keep_in_all_workspaces":
                         keep = True
+                    elif tag == "mline":
+                        mline = True
                     elif tag.startswith("[") and tag.endswith("]"):
                         group = tag[1:-1].strip()
+
+            # Handle multiline variables (begin...end format)
+            if mline or value.strip() == "begin":
+                mline = True
+                multiline_content: list[str] = []
+                i += 1
+
+                # Collect lines until we find 'end'
+                end_line_comment = ""
+                while i < len(lines):
+                    current_line = lines[i]
+                    stripped = current_line.strip()
+
+                    # Check if this line starts with 'end' (not embedded in content)
+                    if stripped == "end" or (
+                        stripped.startswith("end ") and "#" in stripped
+                    ):
+                        # Parse tags from the end line comment
+                        if "#" in stripped:
+                            _, *end_comment = stripped.split("#")
+                            end_line_comment = (
+                                end_comment[0] if end_comment else ""
+                            )
+                        i += 1
+                        break
+                    multiline_content.append(current_line)
+                    i += 1
+
+                value = "\n".join(multiline_content)
+
+                # Parse additional tags from end line comment
+                if end_line_comment:
+                    end_tags = [t.strip() for t in end_line_comment.split(",")]
+                    for tag in end_tags:
+                        if tag == "sensitive":
+                            sensitive = True
+                        elif tag == "hcl":
+                            hcl = True
+                        elif tag == "keep_in_all_workspaces":
+                            keep = True
+                        elif tag == "mline":
+                            mline = True
+                        elif tag.startswith("[") and tag.endswith("]"):
+                            group = tag[1:-1].strip()
+            else:
+                # Regular single-line variable
+                value = value.strip('"')
+                i += 1
 
             # Build description
             description_parts = [f"[{group}]"] if group else []
             if keep:
                 description_parts.append("keep_in_all_workspaces")
+            if mline:
+                description_parts.append("mline")
             description = ", ".join(description_parts)
 
             variables[key] = {

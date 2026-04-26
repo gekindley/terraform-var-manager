@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-04-25
+
 ### Added
-- `CHANGELOG.md`, `CONTRIBUTING.md`, and `SECURITY.md` documentation files.
+- Multiline variable support with `mline` tag and `begin...end` format for SSH keys, JSON, YAML, and other multi-line content.
+- `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `RELEASE.md` documentation files.
 - Centralized exceptions module (`exceptions.py`) with `TerraformCloudError`.
 - Property-based tests with [Hypothesis](https://hypothesis.readthedocs.io/) in `tests/unit/test_utils_properties.py`.
 - Reorganized test structure with `tests/unit/` and `tests/integration/` directories.
@@ -40,5 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/` layout with `py.typed` marker for PEP 561 compliance.
 - `__all__` export list in `__init__.py`.
 
-[Unreleased]: https://github.com/your-org/terraform-var-manager/compare/v1.0.1...HEAD
-[1.0.1]: https://github.com/your-org/terraform-var-manager/releases/tag/v1.0.1
+[Unreleased]: https://github.com/gekindley/terraform-var-manager/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/gekindley/terraform-var-manager/compare/v1.0.1...v1.1.2
+[1.0.1]: https://github.com/gekindley/terraform-var-manager/releases/tag/v1.0.1

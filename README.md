@@ -11,6 +11,7 @@ A Python package and CLI tool for managing Terraform Cloud variables with advanc
 - **Download/Upload Variables**: Seamlessly sync variables between local `.tfvars` files and Terraform Cloud workspaces
 - **Compare Workspaces**: Generate comparison reports between different workspaces
 - **Smart Tagging System**: Organize variables with groups, sensitivity markers, and special behaviors
+- **Multiline Variables**: Support for multi-line content (SSH keys, JSON, YAML) with `mline` tag
 - **Bulk Operations**: Delete all variables or selectively remove outdated ones
 - **HCL Support**: Handle complex variable types with proper HCL formatting
 - **Sensitive Data Protection**: Automatic masking and handling of sensitive variables

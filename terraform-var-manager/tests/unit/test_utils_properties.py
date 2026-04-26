@@ -32,11 +32,13 @@ valid_identifier = st.from_regex(r"[a-zA-Z_][a-zA-Z0-9_]{0,29}", fullmatch=True)
 #   - newline (\n)     — terminates the line
 #   - backslash (\)    — escape character that can confuse the parser
 #   - carriage return (\r) — stripped by the parser's .strip() call, breaking round-trip
+#   - \x0b, \x0c, \x1c-\x1e, \x85, \u2028, \u2029 — treated as line separators by
+#     str.splitlines(), which the multiline parser uses internally
 # Also excludes surrogate characters (category "Cs") which are not valid Unicode text.
 safe_string = st.text(
     alphabet=st.characters(
         blacklist_categories=("Cs",),
-        blacklist_characters='"#\n\\\r',
+        blacklist_characters='"#\n\\\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029',
     ),
     min_size=0,
     max_size=50,

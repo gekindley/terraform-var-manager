@@ -232,4 +232,6 @@ dmypy.json
 # Pytest cache
 .pytest_cache/
 
-**/.kiro/
+# Pending review before publishing
+terraform-var-manager/CONTRIBUTING.md
+terraform-var-manager/SECURITY.md

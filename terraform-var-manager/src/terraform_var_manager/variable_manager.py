@@ -1,56 +1,71 @@
 """
 High-level variable management operations.
 """
+from __future__ import annotations
+
 import logging
-from typing import Dict, List, Any, Optional
-from .api_client import TerraformCloudClient, TerraformCloudError
-from .utils import group_and_format_vars_for_tfvars, extract_group
+from typing import Any
+
+from .api_client import TerraformCloudClient
+from .utils import group_and_format_vars_for_tfvars
 
 logger = logging.getLogger(__name__)
 
 
 class VariableManager:
     """High-level manager for Terraform variable operations."""
-    
-    def __init__(self, client: Optional[TerraformCloudClient] = None):
+
+    def __init__(self, client: TerraformCloudClient | None = None) -> None:
         """Initialize with an API client."""
         self.client = client or TerraformCloudClient()
-    
-    def download_variables(self, workspace_id: str, output_file: str = "variables.tfvars"):
+
+    def download_variables(
+        self, workspace_id: str, output_file: str = "variables.tfvars"
+    ) -> bool:
         """Download variables from a workspace to a .tfvars file."""
         try:
             variables = self.client.get_variables(workspace_id)
             vars_dict = {var["attributes"]["key"]: var for var in variables}
             tfvars_content = group_and_format_vars_for_tfvars(vars_dict)
-            
+
             with open(output_file, "w") as f:
                 f.write(tfvars_content)
-            
+
             logger.info(f"Downloaded {len(variables)} variables to {output_file}")
             return True
         except Exception as e:
             logger.error(f"Download failed: {e}")
             return False
-    
-    def upload_variables(self, workspace_id: str, tfvars_file: str, remove_missing: bool = False):
+
+    def upload_variables(
+        self,
+        workspace_id: str,
+        tfvars_file: str,
+        remove_missing: bool = False,
+    ) -> bool:
         """Upload variables from a .tfvars file to a workspace."""
         try:
             # Parse .tfvars file
             variables_to_upload = self._parse_tfvars_file(tfvars_file)
-            
+
             # Get existing variables
             existing_vars = self.client.get_variables(workspace_id)
-            existing_vars_dict = {var["attributes"]["key"]: var for var in existing_vars}
-            
-            uploaded_keys = set()
-            
+            existing_vars_dict: dict[str, dict[str, Any]] = {
+                var["attributes"]["key"]: var for var in existing_vars
+            }
+
+            uploaded_keys: set[str] = set()
+
             # Process each variable
             for key, var_data in variables_to_upload.items():
                 if var_data["value"] in ["None", "_SECRET"]:
-                    logger.info(f"Variable {key} has value '{var_data['value']}', skipping update.")
+                    logger.info(
+                        f"Variable {key} has value '{var_data['value']}', "
+                        "skipping update."
+                    )
                     continue
-                
-                payload = {
+
+                payload: dict[str, Any] = {
                     "data": {
                         "type": "vars",
                         "attributes": {
@@ -63,24 +78,26 @@ class VariableManager:
                         },
                     }
                 }
-                
+
                 uploaded_keys.add(key)
-                
+
                 if key in existing_vars_dict:
                     # Update existing variable
                     existing = existing_vars_dict[key]
-                    if not self._variable_needs_update(existing["attributes"], var_data):
+                    if not self._variable_needs_update(
+                        existing["attributes"], var_data
+                    ):
                         logger.info(f"Variable {key} has not changed.")
                         continue
-                    
-                    var_id = existing["id"]
+
+                    var_id: str = existing["id"]
                     self.client.update_variable(workspace_id, var_id, payload)
                     logger.info(f"Variable {key} updated successfully.")
                 else:
                     # Create new variable
                     self.client.create_variable(workspace_id, payload)
                     logger.info(f"Variable {key} created successfully.")
-            
+
             # Remove variables not in tfvars if requested
             if remove_missing:
                 remote_keys = set(existing_vars_dict.keys())
@@ -91,88 +108,103 @@ class VariableManager:
                         logger.info(f"Removed variable not in tfvars: {key}")
                     else:
                         logger.error(f"Failed to remove variable {key}")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Upload failed: {e}")
             return False
-    
-    def compare_workspaces(self, workspace1_id: str, workspace2_id: str, output_file: str = "comparison.tfvars"):
+
+    def compare_workspaces(
+        self,
+        workspace1_id: str,
+        workspace2_id: str,
+        output_file: str = "comparison.tfvars",
+    ) -> bool:
         """Compare variables between two workspaces."""
         try:
             vars1 = self.client.get_variables(workspace1_id)
             vars2 = self.client.get_variables(workspace2_id)
-            
-            vars1_dict = {v["attributes"]["key"]: v for v in vars1}
-            vars2_dict = {v["attributes"]["key"]: v for v in vars2}
-            
+
+            vars1_dict: dict[str, dict[str, Any]] = {
+                v["attributes"]["key"]: v for v in vars1
+            }
+            vars2_dict: dict[str, dict[str, Any]] = {
+                v["attributes"]["key"]: v for v in vars2
+            }
+
             all_keys = set(vars1_dict.keys()).union(vars2_dict.keys())
-            merged_vars = {}
-            
+            merged_vars: dict[str, dict[str, Any]] = {}
+
             for key in sorted(all_keys):
                 v1 = vars1_dict.get(key)
                 v2 = vars2_dict.get(key)
-                
+
                 merged_var = self._merge_variable_for_comparison(v1, v2, key)
                 if merged_var:
                     merged_vars[key] = merged_var
-            
+
             tfvars_content = group_and_format_vars_for_tfvars(merged_vars)
-            
+
             with open(output_file, "w") as f:
                 f.write(tfvars_content)
-            
+
             logger.info(f"Comparison saved to {output_file}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Comparison failed: {e}")
             return False
-    
-    def delete_all_variables(self, workspace_id: str):
+
+    def delete_all_variables(self, workspace_id: str) -> bool:
         """Delete all variables from a workspace."""
         try:
             variables = self.client.get_variables(workspace_id)
-            
+
             for var in variables:
-                var_id = var["id"]
-                key = var["attributes"]["key"]
+                var_id: str = var["id"]
+                key: str = var["attributes"]["key"]
                 if self.client.delete_variable(workspace_id, var_id):
                     logger.info(f"Deleted variable: {key}")
                 else:
                     logger.error(f"Failed to delete variable: {key}")
-            
+
             logger.info(f"Processed {len(variables)} variables.")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to delete variables: {e}")
             return False
-    
-    def _parse_tfvars_file(self, tfvars_file: str) -> Dict[str, Dict[str, Any]]:
+
+    def _parse_tfvars_file(self, tfvars_file: str) -> dict[str, dict[str, Any]]:
         """Parse a .tfvars file and extract variable information."""
-        variables = {}
-        
-        with open(tfvars_file, "r") as file:
-            lines = file.readlines()
-        
-        for line in lines:
-            line = line.strip()
-            if line.startswith("#") or "=" not in line:
+        variables: dict[str, dict[str, Any]] = {}
+
+        with open(tfvars_file) as file:
+            content = file.read()
+            lines = content.splitlines()
+
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Skip comments and empty lines
+            if line.startswith("#") or not line or "=" not in line:
+                i += 1
                 continue
-            
+
             key_value, *comment = line.split("#")
-            key, value = key_value.strip().split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"')
-            
+            key_part, value_part = key_value.strip().split("=", 1)
+            key = key_part.strip()
+            value = value_part.strip()
+
             # Parse tags from comment
             sensitive = False
             hcl = False
             group = "default"
             keep = False
-            
+            mline = False
+
             if comment:
                 tags = [t.strip() for t in comment[0].split(",")]
                 for tag in tags:
@@ -182,63 +214,132 @@ class VariableManager:
                         hcl = True
                     elif tag == "keep_in_all_workspaces":
                         keep = True
+                    elif tag == "mline":
+                        mline = True
                     elif tag.startswith("[") and tag.endswith("]"):
                         group = tag[1:-1].strip()
-            
+
+            # Handle multiline variables (begin...end format)
+            if mline or value.strip() == "begin":
+                mline = True
+                multiline_content: list[str] = []
+                i += 1
+
+                # Collect lines until we find 'end'
+                end_line_comment = ""
+                while i < len(lines):
+                    current_line = lines[i]
+                    stripped = current_line.strip()
+
+                    # Check if this line starts with 'end' (not embedded in content)
+                    if stripped == "end" or (
+                        stripped.startswith("end ") and "#" in stripped
+                    ):
+                        # Parse tags from the end line comment
+                        if "#" in stripped:
+                            _, *end_comment = stripped.split("#")
+                            end_line_comment = (
+                                end_comment[0] if end_comment else ""
+                            )
+                        i += 1
+                        break
+                    multiline_content.append(current_line)
+                    i += 1
+
+                value = "\n".join(multiline_content)
+
+                # Parse additional tags from end line comment
+                if end_line_comment:
+                    end_tags = [t.strip() for t in end_line_comment.split(",")]
+                    for tag in end_tags:
+                        if tag == "sensitive":
+                            sensitive = True
+                        elif tag == "hcl":
+                            hcl = True
+                        elif tag == "keep_in_all_workspaces":
+                            keep = True
+                        elif tag == "mline":
+                            mline = True
+                        elif tag.startswith("[") and tag.endswith("]"):
+                            group = tag[1:-1].strip()
+            else:
+                # Regular single-line variable
+                value = value.strip('"')
+                i += 1
+
             # Build description
             description_parts = [f"[{group}]"] if group else []
             if keep:
                 description_parts.append("keep_in_all_workspaces")
+            if mline:
+                description_parts.append("mline")
             description = ", ".join(description_parts)
-            
+
             variables[key] = {
                 "value": value,
                 "description": description,
                 "sensitive": sensitive,
                 "hcl": hcl,
             }
-        
+
         return variables
-    
-    def _variable_needs_update(self, existing_attrs: Dict[str, Any], new_data: Dict[str, Any]) -> bool:
+
+    def _variable_needs_update(
+        self, existing_attrs: dict[str, Any], new_data: dict[str, Any]
+    ) -> bool:
         """Check if a variable needs to be updated."""
         if new_data["sensitive"]:
-            logger.info(f"Variable is sensitive, cannot detect changes. Updating variable.")
+            logger.info(
+                "Variable is sensitive, cannot detect changes. Updating variable."
+            )
             return True
-        
-        return (
-            new_data["value"] != existing_attrs["value"] or
-            new_data["hcl"] != existing_attrs["hcl"] or
-            new_data["sensitive"] != existing_attrs["sensitive"] or
-            new_data["description"] != existing_attrs["description"]
+
+        return bool(
+            new_data["value"] != existing_attrs["value"]
+            or new_data["hcl"] != existing_attrs["hcl"]
+            or new_data["sensitive"] != existing_attrs["sensitive"]
+            or new_data["description"] != existing_attrs["description"]
         )
-    
-    def _merge_variable_for_comparison(self, v1: Optional[Dict], v2: Optional[Dict], key: str) -> Optional[Dict]:
+
+    def _merge_variable_for_comparison(
+        self,
+        v1: dict[str, Any] | None,
+        v2: dict[str, Any] | None,
+        key: str,
+    ) -> dict[str, Any] | None:
         """Merge variable data for comparison between workspaces."""
         if not v1 and not v2:
             return None
-        
-        attr1 = v1["attributes"] if v1 else {}
-        attr2 = v2["attributes"] if v2 else {}
-        
-        desc1 = attr1.get("description", "")
-        desc2 = attr2.get("description", "")
+
+        attr1: dict[str, Any] = v1["attributes"] if v1 else {}
+        attr2: dict[str, Any] = v2["attributes"] if v2 else {}
+
+        desc1: str = attr1.get("description", "") or ""
+        desc2: str = attr2.get("description", "") or ""
         description = desc1 or desc2
-        has_keep_tag = "keep_in_all_workspaces" in desc1 or "keep_in_all_workspaces" in desc2
-        sensitive = attr1.get("sensitive", False) or attr2.get("sensitive", False)
-        hcl = attr1.get("hcl", False) or attr2.get("hcl", False)
-        
+        has_keep_tag = (
+            "keep_in_all_workspaces" in desc1 or "keep_in_all_workspaces" in desc2
+        )
+        sensitive: bool = attr1.get("sensitive", False) or attr2.get("sensitive", False)
+        hcl: bool = attr1.get("hcl", False) or attr2.get("hcl", False)
+
+        value: str
         if sensitive:
             value = "_SECRET"
         else:
             if has_keep_tag:
-                val1 = attr1.get("value")
-                val2 = attr2.get("value")
+                val1: str | None = attr1.get("value")
+                val2: str | None = attr2.get("value")
                 if val1 == val2:
                     value = val1 or "_SECRET"
                 else:
-                    logger.warning(f"Variable {key} has keep_in_all_workspaces tag but different values.")
-                    value = f"{val1 or '<undefined>'} |<->| {val2 or '<undefined>'}"
+                    logger.warning(
+                        f"Variable {key} has keep_in_all_workspaces tag "
+                        "but different values."
+                    )
+                    value = (
+                        f"{val1 or '<undefined>'} |<->| {val2 or '<undefined>'}"
+                    )
             else:
                 if v1 and v2:
                     val1 = attr1.get("value", "_SECRET")
@@ -252,7 +353,7 @@ class VariableManager:
                     value = f"<undefined> |<->| {val2}"
                 else:
                     return None
-        
+
         return {
             "attributes": {
                 "key": key,

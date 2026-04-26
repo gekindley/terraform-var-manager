@@ -15,9 +15,9 @@ def test_variables_with_none_description():
             }
         }
     }
-    
+
     result = group_and_format_vars_for_tfvars(variables_dict)
-    
+
     # Should not raise an exception and should produce valid output
     assert "test_var" in result
     assert "test_value" in result
@@ -29,7 +29,7 @@ def test_variables_with_empty_description():
     variables_dict = {
         "test_var": {
             "attributes": {
-                "key": "test_var", 
+                "key": "test_var",
                 "value": "test_value",
                 "sensitive": False,
                 "hcl": False,
@@ -37,9 +37,9 @@ def test_variables_with_empty_description():
             }
         }
     }
-    
+
     result = group_and_format_vars_for_tfvars(variables_dict)
-    
+
     assert "test_var" in result
     assert "test_value" in result
     assert "default" in result
@@ -51,16 +51,16 @@ def test_variables_with_missing_description():
         "test_var": {
             "attributes": {
                 "key": "test_var",
-                "value": "test_value", 
+                "value": "test_value",
                 "sensitive": False,
                 "hcl": False
                 # No description key at all
             }
         }
     }
-    
+
     result = group_and_format_vars_for_tfvars(variables_dict)
-    
+
     assert "test_var" in result
     assert "test_value" in result
     assert "default" in result

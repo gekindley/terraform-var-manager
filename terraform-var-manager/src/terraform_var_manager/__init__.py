@@ -1,21 +1,26 @@
 """
 Terraform Variables Manager
 
-A powerful tool to manage Terraform Cloud variables with advanced features 
+A powerful tool to manage Terraform Cloud variables with advanced features
 like comparison, synchronization, and tagging.
 """
 
-__version__ = "1.0.1"
-__author__ = "Geordy Kindley"
-__email__ = "gekindley@gmail.com"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("terraform-var-manager")
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "unknown"
 
 from .api_client import TerraformCloudClient
-from .variable_manager import VariableManager
+from .exceptions import TerraformCloudError
 from .utils import extract_group, format_var_line, group_and_format_vars_for_tfvars
+from .variable_manager import VariableManager
 
 __all__ = [
+    "TerraformCloudError",
     "TerraformCloudClient",
-    "VariableManager", 
+    "VariableManager",
     "extract_group",
     "format_var_line",
     "group_and_format_vars_for_tfvars",

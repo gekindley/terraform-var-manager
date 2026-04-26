@@ -188,6 +188,7 @@ uv.lock
 # IDE
 .vscode/
 .idea/
+
 # Terraform credentials
 *.tfrc.json
 credentials.tfrc.json
@@ -198,3 +199,39 @@ credentials.tfrc.json
 
 # PyPI configuration
 .pypirc
+
+# Kiro
+.kiro/
+**/.kiro_tmp/
+
+# Python version file (project-specific, not portable)
+**/.python-version
+.python-version
+
+# Build artifacts
+dist/
+build/
+
+# Coverage data
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Hypothesis database
+.hypothesis/
+
+# Mypy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff cache
+.ruff_cache/
+
+# Pytest cache
+.pytest_cache/
+
+# Pending review before publishing
+terraform-var-manager/CONTRIBUTING.md
+terraform-var-manager/SECURITY.md

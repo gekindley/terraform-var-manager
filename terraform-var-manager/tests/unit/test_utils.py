@@ -19,15 +19,15 @@ def test_format_var_line():
     # Basic variable
     result = format_var_line("var1", "value1", "default")
     assert result == 'var1 = "value1" # [default]'
-    
+
     # Sensitive variable
     result = format_var_line("var2", "secret", "api", sensitive=True)
     assert result == 'var2 = "secret" # [api], sensitive'
-    
+
     # HCL variable
     result = format_var_line("var3", '["a", "b"]', "list", hcl=True)
     assert result == 'var3 = ["a", "b"] # [list], hcl'
-    
+
     # Keep in all workspaces
     result = format_var_line("var4", "value4", "config", keep=True)
     assert result == 'var4 = "value4" # [config], keep_in_all_workspaces'
@@ -55,9 +55,9 @@ def test_group_and_format_vars_for_tfvars():
             }
         }
     }
-    
+
     result = group_and_format_vars_for_tfvars(variables_dict)
-    
+
     # Check that it contains expected groups
     assert "api_gateway" in result
     assert "database" in result

@@ -235,3 +235,8 @@ dmypy.json
 # Pending review before publishing
 terraform-var-manager/CONTRIBUTING.md
 terraform-var-manager/SECURITY.md
+
+.kirograph
+package-lock.json
+package.json
+node_modules/

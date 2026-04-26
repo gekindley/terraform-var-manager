@@ -124,7 +124,7 @@ case "${1:-help}" in
         echo "💡 Note: This is a known issue with UV authentication for some token formats"
         
         # Fallback to twine (which we know works)
-        twine upload --repository testpypi dist/*
+        uv run twine upload --repository testpypi dist/*
         TWINE_RESULT=$?
         
         if [ $TWINE_RESULT -eq 0 ]; then
@@ -186,7 +186,7 @@ case "${1:-help}" in
         echo "💡 Note: This is a known issue with UV authentication for some token formats"
         
         # Fallback to twine (which we know works)
-        twine upload dist/*
+        uv run twine upload dist/*
         TWINE_RESULT=$?
         
         if [ $TWINE_RESULT -eq 0 ]; then

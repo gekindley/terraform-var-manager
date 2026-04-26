@@ -13,7 +13,8 @@ A Python package and CLI tool for managing Terraform Cloud variables with advanc
 - **Smart Tagging System**: Organize variables with groups, sensitivity markers, and special behaviors
 - **Bulk Operations**: Delete all variables or selectively remove outdated ones
 - **HCL Support**: Handle complex variable types with proper HCL formatting
-- **Sensitive Data Protection**: Automatic masking and handling of sensitive variables
+- **Sensitive Data Protection**: Automatic masking and handling of sensitive variables9?
+
 - **Keep Across Workspaces**: Special tags to maintain variables across all environments
 
 ## 📦 Installation
@@ -93,6 +94,50 @@ app_version = "1.0.0" # [application]
 - `sensitive`: Marks variable as sensitive (value will be masked)
 - `hcl`: Indicates the variable uses HCL syntax (lists, maps, etc.)
 - `keep_in_all_workspaces`: Preserves variable across all environments during comparison
+- `mline`: Marks variable as multiline (uses `begin`/`end` format)
+
+### Multiline Variables
+
+Variables with the `mline` tag support multiline content using a special `begin`/`end` format:
+
+```hcl
+# ========== scripts ==========
+startup_script = begin
+#!/bin/bash
+echo "Starting application..."
+systemctl start myapp
+exit 0
+end # [scripts], mline
+
+# ========== credentials ==========
+ssh_private_key = begin
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA...
+...
+-----END RSA PRIVATE KEY-----
+end # [credentials], sensitive, mline
+
+# ========== configuration ==========
+json_config = begin
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "settings": {
+    "enabled": true,
+    "timeout": 30
+  }
+}
+end # [configuration], mline
+```
+
+**Use cases for `mline` tag:**
+- SSH keys and certificates
+- Bash/Python/Shell scripts
+- JSON/YAML configuration files
+- Multi-line text content
+- Any content that needs to preserve line breaks
+
+When uploading, the tool automatically detects `begin`/`end` blocks and preserves the complete multiline content. When downloading variables with the `mline` tag from Terraform Cloud, they are formatted with the `begin`/`end` wrapper automatically.
 
 ## 🔄 Workspace Comparison
 
@@ -282,6 +327,31 @@ security_groups = {
   db  = "sg-db456"
 } # [security], hcl
 
+# ========== credentials ==========
+ssh_private_key = begin
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAxxx...
+...
+-----END RSA PRIVATE KEY-----
+end # [credentials], sensitive, mline
+
+tls_certificate = begin
+-----BEGIN CERTIFICATE-----
+MIID...
+-----END CERTIFICATE-----
+end # [credentials], mline
+
+# ========== scripts ==========
+init_script = begin
+#!/bin/bash
+set -e
+echo "Initializing system..."
+apt-get update
+apt-get install -y nginx
+systemctl enable nginx
+echo "Done!"
+end # [scripts], mline
+
 # ========== application ==========
 app_config = {
   name    = "my-app"
@@ -298,7 +368,62 @@ database_password = "_SECRET" # [application], sensitive
 | `[group]` | Basic grouping | Organization |
 | `[group], sensitive` | Masked value in output | Secrets |
 | `[group], hcl` | No quotes around value | Complex types |
+| `[group], mline` | Multiline format with begin/end | Scripts, certificates, configs |
 | `[group], keep_in_all_workspaces` | Should be identical across environments | Shared resources |
+| `[group], sensitive, keep_in_all_workspaces` | Masked but should exist everywhere | Global secrets |
+| `[group], sensitive, mline` | Masked multiline content | Private keys, certificates |
+| `[group], mline, keep_in_all_workspaces` | Multiline shared across workspaces | Common scripts |
+
+### Multiline Examples by Use Case
+
+**SSH Private Key:**
+```hcl
+ssh_key = begin
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA...
+...
+-----END RSA PRIVATE KEY-----
+end # [credentials], sensitive, mline
+```
+
+**Initialization Script:**
+```hcl
+user_data = begin
+#!/bin/bash
+yum update -y
+yum install -y docker
+systemctl start docker
+end # [compute], mline
+```
+
+**JSON Configuration:**
+```hcl
+app_settings = begin
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432
+  },
+  "cache": {
+    "enabled": true
+  }
+}
+end # [application], mline
+```
+
+**YAML Manifest:**
+```hcl
+kubernetes_config = begin
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  config.yml: |
+    server:
+      port: 8080
+end # [kubernetes], mline
+```
 | `[group], sensitive, keep_in_all_workspaces` | Masked but should exist everywhere | Global secrets |
 
 ## 🔧 Advanced Options

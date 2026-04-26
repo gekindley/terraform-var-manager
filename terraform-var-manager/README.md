@@ -111,50 +111,116 @@ When comparing workspaces, the tool intelligently handles differences:
 ```bash
 git clone https://github.com/gekindley/terraform-var-manager.git
 cd terraform-var-manager
-uv sync --all-extras
+uv sync
 ```
 
 ### Development Commands
 ```bash
 # Run tests with coverage
-./dev.sh test
-
-# Build the package
-./dev.sh build
-
-# Run the CLI tool
-./dev.sh run --help
-
-# Clean build artifacts
-./dev.sh clean
-```
-
-### Running Tests
-```bash
 uv run pytest tests/ -v --cov=src/terraform_var_manager
+
+# Lint the source code
+uv run ruff check src/
+
+# Format the source code
+uv run ruff format src/
+
+# Run type checking
+uv run mypy src/
+
+# Build the package (wheel + sdist)
+uv run python -m build
+
+# Validate build artifacts
+uv run twine check dist/*
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide and [RELEASE.md](RELEASE.md) for the step-by-step publishing process.
 
 ## 📚 API Usage
 
-You can also use the package programmatically:
+You can use the package programmatically via the high-level `VariableManager` or the low-level `TerraformCloudClient`.
+
+### High-level: VariableManager
+
+`VariableManager` handles file I/O, parsing, and orchestration. It accepts an optional `TerraformCloudClient` instance for dependency injection (useful in tests).
+
+```python
+from terraform_var_manager import VariableManager
+
+# Uses credentials from ~/.terraform.d/credentials.tfrc.json by default
+manager = VariableManager()
+
+# Download variables from a workspace to a .tfvars file
+success = manager.download_variables("ws-abc123", "output.tfvars")
+
+# Upload variables from a .tfvars file to a workspace
+success = manager.upload_variables("ws-abc123", "input.tfvars", remove_missing=True)
+
+# Compare two workspaces and write a diff .tfvars file
+success = manager.compare_workspaces("ws-abc123", "ws-def456", "comparison.tfvars")
+
+# Delete all variables in a workspace
+success = manager.delete_all_variables("ws-abc123")
+
+# All methods return True on success, False on failure
+if not success:
+    print("Operation failed — check logs for details")
+```
+
+### Low-level: TerraformCloudClient
+
+`TerraformCloudClient` wraps the Terraform Cloud REST API directly. Use it when you need fine-grained control over individual variable operations.
+
+```python
+from terraform_var_manager import TerraformCloudClient, TerraformCloudError
+
+# Token is read from ~/.terraform.d/credentials.tfrc.json if not provided
+client = TerraformCloudClient()
+
+# Or pass a token explicitly
+client = TerraformCloudClient(token="your-terraform-cloud-token")
+
+try:
+    # List all variables in a workspace
+    variables = client.get_variables("ws-abc123")
+    for var in variables:
+        attrs = var["attributes"]
+        print(f"{attrs['key']} = {attrs['value']}")
+
+    # Create a new variable
+    new_var = client.create_variable("ws-abc123", {
+        "key": "my_variable",
+        "value": "my_value",
+        "description": "[default]",
+        "sensitive": False,
+        "hcl": False,
+        "category": "terraform",
+    })
+    print(f"Created variable with id: {new_var['id']}")
+
+    # Update an existing variable
+    updated = client.update_variable("ws-abc123", "var-xyz789", {
+        "value": "new_value",
+    })
+
+    # Delete a variable
+    deleted = client.delete_variable("ws-abc123", "var-xyz789")
+    print(f"Deleted: {deleted}")
+
+except TerraformCloudError as e:
+    print(f"API error: {e}")
+```
+
+### Dependency Injection
+
+Inject a custom or mock client into `VariableManager` for testing or advanced use cases:
 
 ```python
 from terraform_var_manager import VariableManager, TerraformCloudClient
 
-# Initialize the manager
-manager = VariableManager()
-
-# Download variables
-success = manager.download_variables("workspace-id", "output.tfvars")
-
-# Upload variables
-success = manager.upload_variables("workspace-id", "input.tfvars", remove_missing=True)
-
-# Compare workspaces
-success = manager.compare_workspaces("workspace1-id", "workspace2-id", "comparison.tfvars")
-
-# Delete all variables
-success = manager.delete_all_variables("workspace-id")
+client = TerraformCloudClient(token="my-token")
+manager = VariableManager(client=client)
 ```
 
 ## � Detailed Usage
@@ -330,3 +396,11 @@ echo $?  # 0 = success, 1 = error
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, coding standards, and the pull request process.
+
+## 🔒 Security
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
